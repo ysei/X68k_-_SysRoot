@@ -1,0 +1,68 @@
+
+KEEP_begin:
+
+id:	dc.b	'sysroot'
+	dc.b	'Programmed by Seisei Yamaguchi',0
+	even
+
+;---------------------------------------------------------------------------
+NH_id:		dc.l	_id
+baxb_oldvec:	dc.l	0	;old vector
+;---------------------------------------------------------------------------
+	even
+NEW_CALLS:
+
+NEW_CHMOD	M	<move.l	__orig_CHMOD_vct,-(sp)>,	<BRA @F>
+NEW_MKDIR	M	<move.l	__orig_MKDIR_vct,-(sp)>,	<BRA @F>
+NEW_CHDIR	M	<move.l	__orig_CHDIR_vct,-(sp)>,	<BRA @F>
+NEW_NEWFILE	M	<move.l	__orig_NEWFILE_vct,-(sp)>,	<BRA @F>
+NEW_CREATE	M	<move.l	__orig_CREATE_vct,-(sp)>,	<BRA @F>
+NEW_OPEN	M	<move.l	__orig_OPEN_vct,-(sp)>,		<BRA @F>
+NEW_RMDIR	M	<move.l	__orig_RMDIR_vct,-(sp)>,	<BRA @F>
+NEW_DELETE	M	<move.l	__orig_DELETE_vct,-(sp)>,	<BRA @F>
+
+@@:
+	IFn EQ,	<cmp.b #'/',(a6)>,	<RTS>	*ç≈èâÇ™'/'Ç≈Ç»Ç©Ç¡ÇΩÇÁÇ≥Ç¡Ç≥Ç∆ãAÇÈ
+
+	PUSH	d0/a1-a2
+
+	move.l	(a6),a1
+	move.l	__changed_file_name2,a2
+
+	@@:
+		M	<move.b	(a1)+,d0>,	<move.b	d0,(a2)+>,	<bEQ @F>
+		M	<cmp.b #$80,d0>,	<bMI @B>
+		M	<cmp.b #$A0,d0>,	<bGE @B>
+		move.b	(a1)+,(a2)+
+	BRA	@B
+	@@:
+	POP	d0/a1-a2
+
+	move.l	(a6),__a6_buf
+	move.l	#__changed_file_name,(a6)
+
+	move.l	a1,__a1_buf
+	move.l	(a7)+,a1
+	JSR	(a1)
+
+	move.l	__a1_buf,a1
+	move.l	__a6_buf,(a6)
+RTS
+*------------
+	quad
+__orig_OPEN_vct		dc.l	0
+__orig_CREATE_vct	dc.l	0
+__orig_NEWFILE_vct	dc.l	0
+__orig_MKDIR_vct	dc.l	0
+__orig_CHDIR_vct	dc.l	0
+__orig_CHMOD_vct	dc.l	0
+__orig_RMDIR_vct	dc.l	0
+__orig_DELETE_vct	dc.l	0
+__a1_buf	dc.l	0
+__a6_buf	dc.l	0
+
+__changed_file_name2	dc.l	0	*#__changed_file_name + len($SYSROOT)
+__sysroot_name	dc.b	'SYSROOT',EOS
+__changed_file_name
+	dcb.b	512,EOS
+

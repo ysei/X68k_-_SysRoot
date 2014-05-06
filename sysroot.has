@@ -1,0 +1,337 @@
+
+	include	common.h
+	cpu 68000
+
+MYSIZE		equ	begin-KEEP_begin
+
+
+_id		equ	'SsRt'
+
+	xref	keepchk
+
+	text
+	even
+
+	include	keeped.has
+
+
+*---------------------
+
+V_NEW_NEWFILE	equ	NEW_NEWFILE-KEEP_begin+PSPSIZ
+V_NEW_CREATE	equ	NEW_CREATE-KEEP_begin+PSPSIZ
+V_NEW_OPEN	equ	NEW_OPEN-KEEP_begin+PSPSIZ
+V_NEW_MKDIR	equ	NEW_MKDIR-KEEP_begin+PSPSIZ
+V_NEW_CHDIR	equ	NEW_CHDIR-KEEP_begin+PSPSIZ
+V_NEW_CHMOD	equ	NEW_CHMOD-KEEP_begin+PSPSIZ
+V_NEW_RMDIR	equ	NEW_RMDIR-KEEP_begin+PSPSIZ
+V_NEW_DELETE	equ	NEW_DELETE-KEEP_begin+PSPSIZ
+;Inst		equ	BeginIllegal-KEEP_begin+PSPSIZ
+PATCH1		equ	__orig_NEWFILE_vct-KEEP_begin+PSPSIZ
+PATCH2		equ	__orig_CREATE_vct-KEEP_begin+PSPSIZ
+PATCH3		equ	__orig_OPEN_vct-KEEP_begin+PSPSIZ
+PATCH4		equ	__orig_MKDIR_vct-KEEP_begin+PSPSIZ
+PATCH5		equ	__orig_CHDIR_vct-KEEP_begin+PSPSIZ
+PATCH6		equ	__orig_CHMOD_vct-KEEP_begin+PSPSIZ
+PATCH7		equ	__orig_RMDIR_vct-KEEP_begin+PSPSIZ
+PATCH8		equ	__orig_DELETE_vct-KEEP_begin+PSPSIZ
+;PATCH5		equ	bixb_oldvec-KEEP_begin+PSPSIZ
+
+
+	even
+
+begin:
+	m	<clr.l -(sp)>,	<pea.l (a0)>,	<BSR keepchk>	*既に常駐しているか
+	m	<addq.l	#8,sp>,	<move.b	d0,d7>
+
+	M	<BSR CHECK_ARG>,	<tst.b __rflag>,	<bNE REMOVE>
+
+*
+*	常駐、または、文字列データ更新
+*
+keep:
+	tst.b	d7
+	bNE	error3
+
+keepmain:
+	lea.l	regsav(pc),a1
+	movem.l	a0/sp,(a1)
+
+	m	sSUPER,	<BSR installit>, sUSER
+
+	m	<pea title(pc)>,	<DOS _PRINT>
+	pea.l	crlfms(pc)	*kpms1(pc)
+print:
+	DOS	_PRINT
+	addq.l	#8,sp
+
+	~KEEPPR	#MYSIZE,#0
+
+
+crap_out:       pea     error_title(PC) ;Address of error screen
+                *move.w  #$09,-(SP)      ;GEMDOS Print Line
+                *trap    #1              ;Call GEMDOS
+		DOS	_PRINT
+                addq.l  #4,sp		*6,SP           ;Fix stack
+
+		DOS	_EXIT
+
+*--------------------
+installit:
+		pea.l	kbreak(pc)		*ON ERROR GOTO kbreak
+		move.w	#_CTRLVC,-(sp)
+		DOS	_INTVCS
+		move.w	#_ERRJVC,(sp)
+		DOS	_INTVCS
+		addq.l	#6,sp
+
+	m	<~INTVCG #_NEWFILE>,	<move.l	d0,PATCH1(a0)>	*Get BEFORE vector
+	m	<~INTVCG #_CREATE>,	<move.l	d0,PATCH2(a0)>
+	m	<~INTVCG #_OPEN>,	<move.l	d0,PATCH3(a0)>
+	m	<~INTVCG #_MKDIR>,	<move.l	d0,PATCH4(a0)>
+	m	<~INTVCG #_CHDIR>,	<move.l	d0,PATCH5(a0)>
+	m	<~INTVCG #_CHMOD>,	<move.l	d0,PATCH6(a0)>
+	m	<~INTVCG #_RMDIR>,	<move.l	d0,PATCH7(a0)>
+	m	<~INTVCG #_DELETE>,	<move.l	d0,PATCH8(a0)>
+
+	kretry:
+
+	m	<pea.l V_NEW_NEWFILE(a0)>,	<move.w	#_NEWFILE,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<pea.l V_NEW_CREATE(a0)>,	<move.w	#_CREATE,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<pea.l V_NEW_OPEN(a0)>,	<move.w	#_OPEN,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<pea.l V_NEW_MKDIR(a0)>,	<move.w	#_MKDIR,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<pea.l V_NEW_CHDIR(a0)>,	<move.w	#_CHDIR,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<pea.l V_NEW_CHMOD(a0)>,	<move.w	#_CHMOD,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<pea.l V_NEW_RMDIR(a0)>,	<move.w	#_RMDIR,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<pea.l V_NEW_DELETE(a0)>,	<move.w	#_DELETE,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+
+	lea.l	donflg(pc),a1
+	st.b	(a1)
+                *clr.l   error           ;No error
+	bra	kdone
+
+kbreak:
+	movem.l	regsav(pc),a0/sp
+	lea.l	donflg(pc),a1
+	tst.b	(a1)
+	beq	kretry
+
+kdone:
+
+	m	<move.l	#0,-(sp)>,	<pea __changed_file_name>
+	m	<pea __sysroot_name>,	<DOS _GETENV>,	<lea (12,sp),sp>
+
+	PUSH	a0
+	lea	__changed_file_name,a0
+	@@:
+		tst.b	(a0)+
+	bNE	@B
+	move.l	a0,__changed_file_name2
+
+	POP	a0
+rts
+*--------------------
+REMOVE
+	tst.b	d7
+	beq	error1
+
+	lea.l	V_NEW_NEWFILE(a0),a1	*Is vector already changed by other program ?
+	~INTVCG	#_NEWFILE
+	M	<cmp.l a1,d0>,	<bne error2>
+
+	lea.l	V_NEW_CREATE(a0),a1
+	~INTVCG	#_CREATE
+	M	<cmp.l a1,d0>,	<bne error2>
+
+	lea.l	V_NEW_OPEN(a0),a1
+	~INTVCG	#_OPEN
+	M	<cmp.l a1,d0>,	<bne error2>
+
+	m	<lea.l V_NEW_MKDIR(a0),a1>,	<~INTVCG #_MKDIR>
+	M	<cmp.l a1,d0>,	<bne error2>
+
+	m	<lea.l V_NEW_CHDIR(a0),a1>,	<~INTVCG #_CHDIR>
+	M	<cmp.l a1,d0>,	<bne error2>
+
+	m	<lea.l V_NEW_CHMOD(a0),a1>,	<~INTVCG #_CHMOD>
+	M	<cmp.l a1,d0>,	<bne error2>
+
+	m	<lea.l V_NEW_RMDIR(a0),a1>,	<~INTVCG #_RMDIR>
+	M	<cmp.l a1,d0>,	<bne error2>
+
+	m	<lea.l V_NEW_DELETE(a0),a1>,	<~INTVCG #_DELETE>
+	M	<cmp.l a1,d0>,	<bne error2>
+
+
+	lea.l	regsav(pc),a1
+	movem.l	a0/sp,(a1)
+
+	pea.l	rretry(pc)
+	move.w	#_CTRLVC,-(sp)
+	DOS	_INTVCS
+	move.w	#_ERRJVC,(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+rretry:
+	move.l	PATCH1(a0),-(sp)
+	move.w	#_NEWFILE,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	move.l	PATCH2(a0),-(sp)
+	move.w	#_CREATE,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	move.l	PATCH3(a0),-(sp)
+	move.w	#_OPEN,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	move.l	PATCH4(a0),-(sp)
+	move.w	#_MKDIR,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	move.l	PATCH5(a0),-(sp)
+	move.w	#_CHDIR,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	move.l	PATCH6(a0),-(sp)
+	move.w	#_CHMOD,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	m	<move.l	PATCH7(a0),-(sp)>,	<move.w	#_RMDIR,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	m	<move.l	PATCH8(a0),-(sp)>,	<move.w	#_DELETE,-(sp)>
+	m	<DOS _INTVCS>,	<addq.l	#6,sp>
+
+	pea.l	MPSIZ(a0)
+	DOS	_MFREE
+	addq.l	#4,sp
+
+	st.b	donflg
+	bra	rdone
+
+rbreak:
+	movem.l	regsav(pc),a0/sp
+	tst.b	donflg
+	beq	rretry
+
+rdone:
+	pea.l	__mes__removed(pc)
+	DOS	_PRINT
+	addq.l	#4,sp
+
+	DOS	_EXIT
+
+*-------------------
+CHECK_ARG
+	tst.b	(a2)+			*a2 is cmd line pointer at Human68K
+	bEQ	EXIT__CHECK_ARG
+
+arglp:
+	BSR	skipsp
+	tst.b	d0
+	beq	EXIT__CHECK_ARG
+
+	cmpi.b	#'-',d0
+	beq	chkopt
+	cmpi.b	#'/',d0
+	beq	chkopt
+	BRA	usage
+
+EXIT__CHECK_ARG	RTS ()
+
+chkopt:
+	addq.l	#1,a2
+	move.b	(a2)+,d0
+	beq	usage
+	ori.b	#$20,d0
+	cmpi.b	#'r',d0
+	seq	__rflag
+	beq	EXIT__CHECK_ARG
+	bra	usage
+*--------
+skipsp:
+		move.b	(a2)+,d0
+	cmpi.b	#' ',d0
+	beq	skipsp
+	cmpi.b	#7,d0	*tab
+	beq	skipsp
+
+	subq.l	#1,a2
+RTS ( d0 )
+*---------------------
+*
+*	エラー処理
+*
+error1:
+	lea.l	__mes__no_keeped(pc),a0
+	bra	@F
+error2:
+	lea.l	errms2(pc),a0
+	bra	@F
+error3:
+	lea.l	error_title(pc),a0
+	bra	@F
+usage:
+	lea.l	__mes__usage(pc),a0
+	bra	@F
+
+	@@:
+	move.w	#STDERR,-(sp)
+	pea.l	(a0)
+	DOS	_FPUTS
+	addq.l	#6,sp
+
+	move.w	#1,-(sp)
+	DOS	_EXIT2
+*------------------------------
+
+	data
+
+
+__rflag	dc.b	0
+
+title:
+	dc.b	$0D,$0A
+	DC.B	'sysroot v1.01 を組み込みました',CR,LF
+	dc.b	'-- ',CR,LF
+	dc.b	'YAMAGUTIseisei ( str_h__namae = { "sei" => "山口" , "mei" => "青星" } ) ',CR,LF,EOS
+
+error_title:	DC.B	'Error',$D,$A
+		DC.B	'もうsysroot組み込まれてるで',$D,$A,0
+
+__mes__no_keeped	dc.b	'まだsysroot組み込まれてへんで',$d,$a,0
+__mes__removed		dc.b	'sysrootの常駐を解除しました',$d,$a,0
+errms2	dc.b	'sysroot以降に常駐したプログラムがある様です',CR,LF
+	dc.b	'先にそのプログラムを常駐解除して下さい',CR,LF,EOS
+__mes__usage		dc.b	"sysroot	機能:	'/'で始まるfilenameの先頭に$SYSROOTの内容を付加",$d,$a,0
+			dc.b	'（オプションなしでの実行で常駐します）',$d,$a,0
+crlfms:	.dc.b	CR,LF,EOS
+
+	even
+regsav:	.dc.l	0,0
+donflg:	.dc.b	0
+
+	end	begin
